@@ -6,7 +6,7 @@ appDb.dropDatabase();
 const validators = {
   categories: {$jsonSchema:{bsonType:"object",required:["code","name","active"],properties:{code:{bsonType:"string"},name:{bsonType:"string"},description:{bsonType:"string"},active:{bsonType:"bool"}}}},
   suppliers: {$jsonSchema:{bsonType:"object",required:["code","name","phone","address","active"],properties:{code:{bsonType:"string"},name:{bsonType:"string"},phone:{bsonType:"string"},email:{bsonType:"string"},address:{bsonType:"string"},active:{bsonType:"bool"}}}},
-  products: {$jsonSchema:{bsonType:"object",required:["code","name","category_code","supplier_code","unit","stock","min_stock","purchase_price","sale_price","active"],properties:{code:{bsonType:"string"},name:{bsonType:"string"},category_code:{bsonType:"string"},supplier_code:{bsonType:"string"},unit:{bsonType:"string"},stock:{bsonType:["int","long","double","decimal"],minimum:0},min_stock:{bsonType:["int","long","double","decimal"],minimum:0},purchase_price:{bsonType:["int","long","double","decimal"],minimum:0},sale_price:{bsonType:["int","long","double","decimal"],minimum:0},active:{bsonType:"bool"}}}},
+  products: {$jsonSchema:{bsonType:"object",required:["code","name","category_code","supplier_code","unit","stock","min_stock","purchase_price","sale_price","active"],properties:{code:{bsonType:"string"},name:{bsonType:"string"},image:{bsonType:"string"},category_code:{bsonType:"string"},supplier_code:{bsonType:"string"},unit:{bsonType:"string"},stock:{bsonType:["int","long","double","decimal"],minimum:0},min_stock:{bsonType:["int","long","double","decimal"],minimum:0},purchase_price:{bsonType:["int","long","double","decimal"],minimum:0},sale_price:{bsonType:["int","long","double","decimal"],minimum:0},active:{bsonType:"bool"}}}},
   customers: {$jsonSchema:{bsonType:"object",required:["code","name","phone","points","active"],properties:{code:{bsonType:"string"},name:{bsonType:"string"},phone:{bsonType:"string"},address:{bsonType:"string"},points:{bsonType:["int","long"],minimum:0},active:{bsonType:"bool"}}}},
   users: {$jsonSchema:{bsonType:"object",required:["code","name","username","password_hash","role","active"],properties:{code:{bsonType:"string"},name:{bsonType:"string"},username:{bsonType:"string"},password_hash:{bsonType:"string"},role:{enum:["admin","staff"]},active:{bsonType:"bool"}}}},
   invoices: {$jsonSchema:{bsonType:"object",required:["code","sold_at","employee","items","total","status"],properties:{code:{bsonType:"string"},sold_at:{bsonType:"date"},employee:{bsonType:"object",required:["code","name"]},customer:{bsonType:["object","null"]},items:{bsonType:"array",minItems:1,items:{bsonType:"object",required:["product_code","product_name","quantity","unit_price","line_total"]}},total:{bsonType:["int","long","double","decimal"],minimum:0},status:{enum:["completed","cancelled"]}}}}
@@ -33,7 +33,10 @@ appDb.suppliers.insertMany([
 const names=["Nước suối 500ml","Trà xanh 0 độ","Nước tăng lực","Nước ngọt cola","Sữa tươi có đường","Sữa chua ăn","Sữa đặc","Sữa đậu nành","Mì Hảo Hảo","Mì Omachi","Gạo ST25 5kg","Bún khô","Dầu ăn 1L","Nước mắm 500ml","Đường tinh luyện 1kg","Hạt nêm 400g","Nước rửa chén","Bột giặt 3kg","Nước lau sàn","Dầu gội 650g","Snack khoai tây","Bánh quy bơ","Kẹo mềm trái cây","Bánh gạo","Cà phê hòa tan","Trà túi lọc","Khăn giấy","Giấy vệ sinh","Tương ớt","Nước tương"];
 const category=["L001","L001","L001","L001","L002","L002","L002","L002","L003","L003","L003","L003","L004","L004","L004","L004","L005","L005","L005","L005","L006","L006","L006","L006","L001","L001","L005","L005","L004","L004"];
 const supplier=["NCC003","NCC003","NCC003","NCC003","NCC001","NCC001","NCC001","NCC001","NCC004","NCC004","NCC002","NCC002","NCC002","NCC002","NCC002","NCC002","NCC005","NCC005","NCC005","NCC005","NCC002","NCC002","NCC002","NCC002","NCC002","NCC002","NCC005","NCC005","NCC002","NCC002"];
-const products=names.map((name,i)=>({code:`SP${String(i+1).padStart(3,"0")}`,name,category_code:category[i],supplier_code:supplier[i],unit:i===10?"túi":"sản phẩm",stock:i%7===0?4:25+(i*7)%80,min_stock:8,purchase_price:6000+i*1700,sale_price:8000+i*2200,active:true,created_at:new Date(),updated_at:new Date()}));
+const products=names.map((name,i)=>{
+  const code=`SP${String(i+1).padStart(3,"0")}`;
+  return {code,name,image:`assets/images/products/${code}.jpg`,category_code:category[i],supplier_code:supplier[i],unit:i===10?"túi":"sản phẩm",stock:i%7===0?4:25+(i*7)%80,min_stock:8,purchase_price:6000+i*1700,sale_price:8000+i*2200,active:true,created_at:new Date(),updated_at:new Date()};
+});
 appDb.products.insertMany(products);
 
 const customerNames=["Nguyễn Minh Anh","Trần Hoàng Nam","Lê Thị Hương","Phạm Gia Bảo","Võ Thu Trang","Đặng Quốc Huy","Bùi Thanh Hà","Huỳnh Văn Khang","Đỗ Ngọc Lan","Hồ Nhật Minh"];
@@ -41,8 +44,8 @@ appDb.customers.insertMany(customerNames.map((name,i)=>({code:`KH${String(i+1).p
 
 // Hash bcrypt tương ứng mật khẩu "password". Đổi ngay sau lần đăng nhập đầu.
 appDb.users.insertMany([
-  {code:"NV001",name:"Quản trị hệ thống",username:"admin",password_hash:"$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.",role:"admin",active:true,created_at:new Date(),updated_at:new Date()},
-  {code:"NV002",name:"Nhân viên bán hàng",username:"staff",password_hash:"$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.",role:"staff",active:true,created_at:new Date(),updated_at:new Date()}
+  {code:"NV001",name:"Quản trị hệ thống",username:"admin",password_hash:"$2y$12$dp58JSxJuJ00k0pjv9WCHO1vrIFi0YOdAFI/y62yNFU6xDQICWvoG",role:"admin",active:true,created_at:new Date(),updated_at:new Date()},
+  {code:"NV002",name:"Nhân viên bán hàng",username:"staff",password_hash:"$2y$12$dp58JSxJuJ00k0pjv9WCHO1vrIFi0YOdAFI/y62yNFU6xDQICWvoG",role:"staff",active:true,created_at:new Date(),updated_at:new Date()}
 ]);
 
 const admin={code:"NV001",name:"Quản trị hệ thống"};

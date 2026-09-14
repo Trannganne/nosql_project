@@ -87,11 +87,49 @@ try {
     $error = $e->getMessage();
 }
 
+function handleProductImage(array $post): string
+{
+    $code = trim((string) ($post['code'] ?? ''));
+    if (!empty($_FILES['image_file']['name']) && ($_FILES['image_file']['error'] ?? -1) === UPLOAD_ERR_OK) {
+        $file = $_FILES['image_file'];
+        $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'];
+        if (in_array($ext, $allowed, true)) {
+            $filename = ($code !== '' ? preg_replace('/[^a-zA-Z0-9_-]/', '', $code) : 'prod_' . time()) . '.' . $ext;
+            $uploadDir = __DIR__ . '/assets/images/products/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0777, true);
+            }
+            if (move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
+                return 'assets/images/products/' . $filename;
+            }
+        }
+    }
+    $imageInput = trim((string) ($post['image'] ?? ''));
+    if ($imageInput !== '') {
+        return $imageInput;
+    }
+    if ($code !== '' && file_exists(__DIR__ . "/assets/images/products/{$code}.jpg")) {
+        return "assets/images/products/{$code}.jpg";
+    }
+    return 'assets/images/products/default.svg';
+}
+
 function normalizeForm(string $collection, array $post): array
 {
     $base = ['code' => trim((string) ($post['code'] ?? '')), 'name' => trim((string) ($post['name'] ?? ''))];
     return match ($collection) {
-        'products' => $base + ['category_code' => trim((string) $post['category_code']), 'supplier_code' => trim((string) $post['supplier_code']), 'unit' => trim((string) $post['unit']), 'stock' => (int) $post['stock'], 'min_stock' => (int) $post['min_stock'], 'purchase_price' => (float) $post['purchase_price'], 'sale_price' => (float) $post['sale_price'], 'active' => isset($post['active'])],
+        'products' => $base + [
+            'image' => handleProductImage($post),
+            'category_code' => trim((string) $post['category_code']),
+            'supplier_code' => trim((string) $post['supplier_code']),
+            'unit' => trim((string) $post['unit']),
+            'stock' => (int) $post['stock'],
+            'min_stock' => (int) $post['min_stock'],
+            'purchase_price' => (float) $post['purchase_price'],
+            'sale_price' => (float) $post['sale_price'],
+            'active' => isset($post['active']),
+        ],
         'categories' => $base + ['description' => trim((string) ($post['description'] ?? '')), 'active' => isset($post['active'])],
         'suppliers' => $base + ['phone' => trim((string) $post['phone']), 'address' => trim((string) $post['address']), 'email' => trim((string) ($post['email'] ?? '')), 'active' => isset($post['active'])],
         'customers' => $base + ['phone' => trim((string) $post['phone']), 'address' => trim((string) $post['address']), 'points' => (int) $post['points'], 'active' => isset($post['active'])],
@@ -159,44 +197,83 @@ function renderDashboard(array $d): void
         <p>Quản trị danh mục, nhà cung cấp, sản phẩm, khách hàng, người dùng; bán hàng có kiểm tra tồn kho; báo cáo aggregation; backup và restore.</p>
     </section><?php }
 
-            function renderCrud(Repository $repo, string $collection): void
-            {
-                $edit = !empty($_GET['id']) ? $repo->find($collection, (string) $_GET['id']) : null;
-                $docs = $repo->all($collection, trim((string) ($_GET['q'] ?? '')));
-                $fields = match ($collection) {
-                    'products' => ['code' => 'Mã', 'name' => 'Tên', 'category_code' => 'Mã loại', 'supplier_code' => 'Mã NCC', 'unit' => 'Đơn vị', 'stock' => 'Tồn kho', 'min_stock' => 'Tồn tối thiểu', 'purchase_price' => 'Giá nhập', 'sale_price' => 'Giá bán'],
-                    'categories' => ['code' => 'Mã', 'name' => 'Tên', 'description' => 'Mô tả'],
-                    'suppliers' => ['code' => 'Mã', 'name' => 'Tên', 'phone' => 'Điện thoại', 'email' => 'Email', 'address' => 'Địa chỉ'],
-                    'customers' => ['code' => 'Mã', 'name' => 'Tên', 'phone' => 'Điện thoại', 'address' => 'Địa chỉ', 'points' => 'Điểm'],
-                    'users' => ['code' => 'Mã NV', 'name' => 'Họ tên', 'username' => 'Tài khoản', 'role' => 'Quyền', 'password' => 'Mật khẩu mới'],
-                }; ?>
+function renderCrud(Repository $repo, string $collection): void
+{
+    $edit = !empty($_GET['id']) ? $repo->find($collection, (string) $_GET['id']) : null;
+    $docs = $repo->all($collection, trim((string) ($_GET['q'] ?? '')));
+    $fields = match ($collection) {
+        'products' => ['code' => 'Mã', 'name' => 'Tên', 'category_code' => 'Mã loại', 'supplier_code' => 'Mã NCC', 'unit' => 'Đơn vị', 'stock' => 'Tồn kho', 'min_stock' => 'Tồn tối thiểu', 'purchase_price' => 'Giá nhập', 'sale_price' => 'Giá bán'],
+        'categories' => ['code' => 'Mã', 'name' => 'Tên', 'description' => 'Mô tả'],
+        'suppliers' => ['code' => 'Mã', 'name' => 'Tên', 'phone' => 'Điện thoại', 'email' => 'Email', 'address' => 'Địa chỉ'],
+        'customers' => ['code' => 'Mã', 'name' => 'Tên', 'phone' => 'Điện thoại', 'address' => 'Địa chỉ', 'points' => 'Điểm'],
+        'users' => ['code' => 'Mã NV', 'name' => 'Họ tên', 'username' => 'Tài khoản', 'role' => 'Quyền', 'password' => 'Mật khẩu mới'],
+    }; ?>
     <section class="grid">
-        <form method="post" class="card form">
-            <h3><?= $edit ? 'Cập nhật' : 'Thêm mới' ?></h3><input type="hidden" name="_token" value="<?= Security::csrfToken() ?>"><input type="hidden" name="action" value="save"><input type="hidden" name="collection" value="<?= $collection ?>"><input type="hidden" name="id" value="<?= Security::e($edit ? (string)$edit['_id'] : '') ?>"><?php foreach ($fields as $key => $label): $type = str_contains($key, 'price') || in_array($key, ['stock', 'min_stock', 'points'], true) ? 'number' : ($key === 'password' ? 'password' : 'text'); ?><label><?= $label ?><input type="<?= $type ?>" name="<?= $key ?>" value="<?= $key === 'password' ? '' : Security::e(val($edit, $key)) ?>" <?= (!$edit || !in_array($key, ['password', 'email', 'description'], true)) ? 'required' : '' ?>></label><?php endforeach ?><label class="check"><input type="checkbox" name="active" <?= !$edit || val($edit, 'active', true) ? 'checked' : '' ?>> Đang hoạt động</label><button>Lưu</button>
+        <form method="post" enctype="multipart/form-data" class="card form">
+            <h3><?= $edit ? 'Cập nhật' : 'Thêm mới' ?></h3>
+            <input type="hidden" name="_token" value="<?= Security::csrfToken() ?>">
+            <input type="hidden" name="action" value="save">
+            <input type="hidden" name="collection" value="<?= $collection ?>">
+            <input type="hidden" name="id" value="<?= Security::e($edit ? (string)$edit['_id'] : '') ?>">
+            <?php if ($collection === 'products'): ?>
+                <div class="product-image-field">
+                    <label>Ảnh sản phẩm (tải file lên hoặc nhập URL)
+                        <?php if (!empty(val($edit, 'image'))): ?>
+                            <div class="thumb-preview">
+                                <img class="product-thumb-lg" src="<?= Security::e(val($edit, 'image')) ?>" onerror="this.src='assets/images/products/default.svg'" alt="Xem trước">
+                            </div>
+                        <?php endif ?>
+                        <input type="file" name="image_file" accept="image/*">
+                        <input type="text" name="image" value="<?= Security::e(val($edit, 'image', '')) ?>" placeholder="assets/images/products/SP001.jpg hoặc URL">
+                    </label>
+                </div>
+            <?php endif ?>
+            <?php foreach ($fields as $key => $label): $type = str_contains($key, 'price') || in_array($key, ['stock', 'min_stock', 'points'], true) ? 'number' : ($key === 'password' ? 'password' : 'text'); ?>
+                <label><?= $label ?><input type="<?= $type ?>" name="<?= $key ?>" value="<?= $key === 'password' ? '' : Security::e(val($edit, $key)) ?>" <?= (!$edit || !in_array($key, ['password', 'email', 'description'], true)) ? 'required' : '' ?>></label>
+            <?php endforeach ?>
+            <label class="check"><input type="checkbox" name="active" <?= !$edit || val($edit, 'active', true) ? 'checked' : '' ?>> Đang hoạt động</label>
+            <button>Lưu</button>
         </form>
         <section>
             <form class="search"><input type="hidden" name="page" value="<?= $collection ?>"><input name="q" value="<?= Security::e($_GET['q'] ?? '') ?>" placeholder="Tìm theo mã hoặc tên"><button>Tìm</button></form>
             <div class="table-wrap">
                 <table>
                     <thead>
-                        <tr><?php foreach (array_slice($fields, 0, 5, true) as $label): ?><th><?= $label ?></th><?php endforeach ?><th>Thao tác</th>
+                        <tr>
+                            <?php if ($collection === 'products'): ?><th style="width:60px;">Ảnh</th><?php endif ?>
+                            <?php foreach (array_slice($fields, 0, 5, true) as $label): ?><th><?= $label ?></th><?php endforeach ?>
+                            <th>Thao tác</th>
                         </tr>
                     </thead>
-                    <tbody><?php foreach ($docs as $doc): ?><tr><?php foreach (array_slice($fields, 0, 5, true) as $key => $label): ?><td><?= Security::e(val($doc, $key)) ?></td><?php endforeach ?><td class="actions"><a href="?page=<?= $collection ?>&id=<?= $doc['_id'] ?>">Sửa</a>
-                                    <form method="post" onsubmit="return confirm('Xóa bản ghi này?')"><input type="hidden" name="_token" value="<?= Security::csrfToken() ?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="collection" value="<?= $collection ?>"><input type="hidden" name="id" value="<?= $doc['_id'] ?>"><button class="link danger">Xóa</button></form>
+                    <tbody>
+                        <?php foreach ($docs as $doc): ?>
+                            <tr>
+                                <?php if ($collection === 'products'): ?>
+                                    <td class="col-thumb">
+                                        <img class="product-thumb" src="<?= Security::e(val($doc, 'image', 'assets/images/products/default.svg')) ?>" alt="<?= Security::e(val($doc, 'name')) ?>" onerror="this.src='assets/images/products/default.svg'" loading="lazy">
+                                    </td>
+                                <?php endif ?>
+                                <?php foreach (array_slice($fields, 0, 5, true) as $key => $label): ?><td><?= Security::e(val($doc, $key)) ?></td><?php endforeach ?>
+                                <td>
+                                    <div class="actions">
+                                        <a href="?page=<?= $collection ?>&id=<?= $doc['_id'] ?>">Sửa</a>
+                                        <form method="post" onsubmit="return confirm('Xóa bản ghi này?')"><input type="hidden" name="_token" value="<?= Security::csrfToken() ?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="collection" value="<?= $collection ?>"><input type="hidden" name="id" value="<?= $doc['_id'] ?>"><button class="link danger">Xóa</button></form>
+                                    </div>
                                 </td>
-                            </tr><?php endforeach ?></tbody>
+                            </tr>
+                        <?php endforeach ?>
+                    </tbody>
                 </table>
             </div>
         </section>
     </section><?php }
 
-            function renderInvoices(): void
-            {
-                $db = Database::connection();
-                $products = $db->products->find(['active' => true], ['sort' => ['name' => 1]])->toArray();
-                $customers = $db->customers->find(['active' => true], ['sort' => ['name' => 1]])->toArray();
-                $invoices = (new InvoiceService())->all(); ?>
+function renderInvoices(): void
+{
+    $db = Database::connection();
+    $products = $db->products->find(['active' => true], ['sort' => ['name' => 1]])->toArray();
+    $customers = $db->customers->find(['active' => true], ['sort' => ['name' => 1]])->toArray();
+    $invoices = (new InvoiceService())->all(); ?>
     <section class="card">
         <h3>Tạo hóa đơn</h3>
         <form method="post" class="invoice-form"><input type="hidden" name="_token" value="<?= Security::csrfToken() ?>"><input type="hidden" name="action" value="invoice"><label>Khách hàng<select name="customer_id">
@@ -235,8 +312,8 @@ function renderDashboard(array $d): void
         </table>
     </div><?php }
 
-            function renderReports(array $r): void
-            { ?><section class="grid two">
+function renderReports(array $r): void
+{ ?><section class="grid two">
         <div class="card">
             <h3>Doanh thu theo tháng</h3>
             <table>
@@ -255,10 +332,12 @@ function renderDashboard(array $d): void
             <h3>Top sản phẩm</h3>
             <table>
                 <tr>
+                    <th style="width:60px;">Ảnh</th>
                     <th>Sản phẩm</th>
                     <th>SL bán</th>
                     <th>Doanh thu</th>
                 </tr><?php foreach ($r['top_products'] as $x): ?><tr>
+                        <td class="col-thumb"><img class="product-thumb" src="assets/images/products/<?= Security::e($x['_id']) ?>.jpg" onerror="this.src='assets/images/products/default.svg'" alt="<?= Security::e($x['name']) ?>"></td>
                         <td><?= Security::e($x['name']) ?></td>
                         <td><?= $x['quantity'] ?></td>
                         <td><?= money($x['revenue']) ?></td>
