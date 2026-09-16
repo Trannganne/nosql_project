@@ -156,7 +156,7 @@ $labels = ['dashboard' => 'Tổng quan', 'products' => 'Sản phẩm', 'categori
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title><?= Security::e($labels[$page] ?? 'Đăng nhập') ?> - MiniMart</title>
-    <link rel="stylesheet" href="assets/app.css">
+    <link rel="stylesheet" href="assets/app.css?v=<?= file_exists(__DIR__ . '/assets/app.css') ? filemtime(__DIR__ . '/assets/app.css') : time() ?>">
 </head>
 
 <body>
@@ -273,7 +273,62 @@ function renderInvoices(): void
     $db = Database::connection();
     $products = $db->products->find(['active' => true], ['sort' => ['name' => 1]])->toArray();
     $customers = $db->customers->find(['active' => true], ['sort' => ['name' => 1]])->toArray();
-    $invoices = (new InvoiceService())->all(); ?>
+    $invoices = (new InvoiceService())->all();
+
+    $invoiceJsonMap = [];
+    foreach ($invoices as $i) {
+        $code = (string) $i['code'];
+        $items = [];
+        foreach ($i['items'] ?? [] as $item) {
+            $prodCode = (string) ($item['product_code'] ?? '');
+            $img = file_exists(__DIR__ . "/assets/images/products/{$prodCode}.jpg")
+                ? "assets/images/products/{$prodCode}.jpg"
+                : "assets/images/products/default.svg";
+            $items[] = [
+                'product_code' => $prodCode,
+                'product_name' => (string) ($item['product_name'] ?? ''),
+                'quantity' => (int) ($item['quantity'] ?? 1),
+                'unit_price' => (float) ($item['unit_price'] ?? 0),
+                'unit_price_formatted' => money($item['unit_price'] ?? 0),
+                'discount_percent' => (float) ($item['discount_percent'] ?? 0),
+                'line_total' => (float) ($item['line_total'] ?? 0),
+                'line_total_formatted' => money($item['line_total'] ?? 0),
+                'image' => $img,
+            ];
+        }
+        $paymentText = match ((string) ($i['payment_method'] ?? 'cash')) {
+            'bank_transfer' => 'Chuyển khoản',
+            default => 'Tiền mặt',
+        };
+        $statusText = match ((string) ($i['status'] ?? 'completed')) {
+            'completed' => 'Đã hoàn thành',
+            'cancelled' => 'Đã hủy',
+            default => (string) ($i['status'] ?? 'completed'),
+        };
+        $customerInfo = 'Khách lẻ';
+        if (!empty($i['customer'])) {
+            $cName = (string) ($i['customer']['name'] ?? '');
+            $cCode = (string) ($i['customer']['code'] ?? '');
+            $customerInfo = $cCode !== '' ? "{$cName} ({$cCode})" : $cName;
+        }
+        $employeeInfo = (string) ($i['employee']['name'] ?? 'Nhân viên');
+        if (!empty($i['employee']['code'])) {
+            $employeeInfo .= ' (' . $i['employee']['code'] . ')';
+        }
+
+        $invoiceJsonMap[$code] = [
+            'code' => $code,
+            'sold_at' => $i['sold_at']->toDateTime()->format('d/m/Y H:i:s'),
+            'customer' => $customerInfo,
+            'employee' => $employeeInfo,
+            'payment_method' => $paymentText,
+            'status' => $statusText,
+            'subtotal' => money($i['subtotal'] ?? $i['total'] ?? 0),
+            'total' => money($i['total'] ?? 0),
+            'items' => $items,
+        ];
+    }
+?>
     <section class="card">
         <h3>Tạo hóa đơn</h3>
         <form method="post" class="invoice-form"><input type="hidden" name="_token" value="<?= Security::csrfToken() ?>"><input type="hidden" name="action" value="invoice"><label>Khách hàng<select name="customer_id">
@@ -299,18 +354,185 @@ function renderInvoices(): void
                     <th>Nhân viên</th>
                     <th>Tổng tiền</th>
                     <th>Trạng thái</th>
+                    <th>Thao tác</th>
                 </tr>
             </thead>
             <tbody><?php foreach ($invoices as $i): ?><tr>
-                        <td><?= Security::e($i['code']) ?></td>
+                        <td><code><?= Security::e($i['code']) ?></code></td>
                         <td><?= $i['sold_at']->toDateTime()->format('d/m/Y H:i') ?></td>
                         <td><?= Security::e($i['customer']['name'] ?? 'Khách lẻ') ?></td>
                         <td><?= Security::e($i['employee']['name']) ?></td>
-                        <td><?= money($i['total']) ?></td>
-                        <td><?= Security::e($i['status']) ?></td>
+                        <td><strong><?= money($i['total']) ?></strong></td>
+                        <td><span class="badge badge-success"><?= Security::e($i['status'] === 'completed' ? 'Hoàn thành' : $i['status']) ?></span></td>
+                        <td>
+                            <button type="button" class="btn-sm secondary" onclick="viewInvoiceDetail('<?= Security::e($i['code']) ?>')">
+                                👁 Chi tiết
+                            </button>
+                        </td>
                     </tr><?php endforeach ?></tbody>
         </table>
-    </div><?php }
+    </div>
+
+    <div id="invoiceModal" class="modal-backdrop" onclick="if(event.target===this)closeInvoiceModal()">
+        <div class="modal-card" id="printableInvoice">
+            <div class="modal-header">
+                <div>
+                    <span class="badge badge-success" id="modalStatus">Đã hoàn thành</span>
+                    <h3 style="margin-top:6px;margin-bottom:0">Hóa đơn <span id="modalCode" style="color:var(--brand)"></span></h3>
+                </div>
+                <button type="button" class="modal-close" onclick="closeInvoiceModal()" title="Đóng (Esc)">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="invoice-meta">
+                    <div class="invoice-meta-item">
+                        <span>Khách hàng</span>
+                        <strong id="modalCustomer"></strong>
+                    </div>
+                    <div class="invoice-meta-item">
+                        <span>Nhân viên bán</span>
+                        <strong id="modalEmployee"></strong>
+                    </div>
+                    <div class="invoice-meta-item">
+                        <span>Thời gian bán</span>
+                        <strong id="modalSoldAt"></strong>
+                    </div>
+                    <div class="invoice-meta-item">
+                        <span>Hình thức thanh toán</span>
+                        <strong id="modalPayment"></strong>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 style="margin: 0 0 10px 0; font-size: 15px; color: var(--ink);">Chi tiết mặt hàng</h4>
+                    <div class="table-wrap" style="border: 1px solid var(--line); border-radius: 8px;">
+                        <table class="modal-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px; text-align: center;">STT</th>
+                                    <th style="width: 50px; text-align: center;">Ảnh</th>
+                                    <th>Mã SP</th>
+                                    <th>Tên sản phẩm</th>
+                                    <th style="text-align: right;">Đơn giá</th>
+                                    <th style="text-align: center;">SL</th>
+                                    <th style="text-align: center;">Giảm</th>
+                                    <th style="text-align: right;">Thành tiền</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modalItemsBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="modal-summary">
+                    <div class="summary-box">
+                        <div class="summary-row">
+                            <span>Tạm tính:</span>
+                            <strong id="modalSubtotal">0 đ</strong>
+                        </div>
+                        <div class="summary-row total">
+                            <span>Tổng thanh toán:</span>
+                            <strong id="modalTotal" style="color:var(--brand)">0 đ</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="secondary" onclick="window.print()" style="display:inline-flex;align-items:center;gap:6px;">
+                    🖨 In hóa đơn
+                </button>
+                <button type="button" onclick="closeInvoiceModal()">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const invoicesData = <?= json_encode($invoiceJsonMap, JSON_UNESCAPED_UNICODE) ?>;
+
+    function viewInvoiceDetail(code) {
+        const inv = invoicesData[code];
+        if (!inv) return;
+        document.getElementById('modalCode').textContent = '#' + inv.code;
+        document.getElementById('modalStatus').textContent = inv.status;
+        document.getElementById('modalCustomer').textContent = inv.customer;
+        document.getElementById('modalEmployee').textContent = inv.employee;
+        document.getElementById('modalSoldAt').textContent = inv.sold_at;
+        document.getElementById('modalPayment').textContent = inv.payment_method;
+        document.getElementById('modalSubtotal').textContent = inv.subtotal;
+        document.getElementById('modalTotal').textContent = inv.total;
+
+        const tbody = document.getElementById('modalItemsBody');
+        tbody.innerHTML = '';
+        inv.items.forEach((item, index) => {
+            const tr = document.createElement('tr');
+
+            const tdStt = document.createElement('td');
+            tdStt.style.textAlign = 'center';
+            tdStt.style.color = 'var(--muted)';
+            tdStt.textContent = index + 1;
+
+            const tdImg = document.createElement('td');
+            tdImg.style.textAlign = 'center';
+            const img = document.createElement('img');
+            img.className = 'product-thumb';
+            img.style.width = '36px';
+            img.style.height = '36px';
+            img.style.padding = '2px';
+            img.src = item.image;
+            img.alt = item.product_name;
+            img.onerror = function() { this.src = 'assets/images/products/default.svg'; };
+            tdImg.appendChild(img);
+
+            const tdCode = document.createElement('td');
+            const codeElem = document.createElement('code');
+            codeElem.textContent = item.product_code;
+            tdCode.appendChild(codeElem);
+
+            const tdName = document.createElement('td');
+            const strongName = document.createElement('strong');
+            strongName.textContent = item.product_name;
+            tdName.appendChild(strongName);
+
+            const tdPrice = document.createElement('td');
+            tdPrice.style.textAlign = 'right';
+            tdPrice.textContent = item.unit_price_formatted;
+
+            const tdQty = document.createElement('td');
+            tdQty.style.textAlign = 'center';
+            tdQty.textContent = item.quantity;
+
+            const tdDiscount = document.createElement('td');
+            tdDiscount.style.textAlign = 'center';
+            tdDiscount.textContent = item.discount_percent > 0 ? '-' + item.discount_percent + '%' : '0%';
+
+            const tdTotal = document.createElement('td');
+            tdTotal.style.textAlign = 'right';
+            tdTotal.style.fontWeight = '600';
+            tdTotal.style.color = 'var(--brand)';
+            tdTotal.textContent = item.line_total_formatted;
+
+            tr.append(tdStt, tdImg, tdCode, tdName, tdPrice, tdQty, tdDiscount, tdTotal);
+            tbody.appendChild(tr);
+        });
+
+        const modal = document.getElementById('invoiceModal');
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeInvoiceModal() {
+        const modal = document.getElementById('invoiceModal');
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeInvoiceModal();
+        }
+    });
+    </script>
+<?php }
 
 function renderReports(array $r): void
 { ?><section class="grid two">
