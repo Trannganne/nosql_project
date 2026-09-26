@@ -24,6 +24,37 @@ final class Repository
             ->find($filter, ['sort' => ['created_at' => -1]])->toArray();
     }
 
+    public function paginate(string $collection, string $search = '', int $page = 1, int $perPage = 10): array
+    {
+        $this->guard($collection);
+        $filter = [];
+        if ($search !== '') {
+            $filter = ['$or' => [
+                ['code' => ['$regex' => preg_quote($search), '$options' => 'i']],
+                ['name' => ['$regex' => preg_quote($search), '$options' => 'i']],
+            ]];
+        }
+        $coll = Database::connection()->selectCollection($collection);
+        $total = $coll->countDocuments($filter);
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($page, $totalPages));
+        $skip = ($page - 1) * $perPage;
+        
+        $items = $coll->find($filter, [
+            'sort' => ['created_at' => -1],
+            'skip' => $skip,
+            'limit' => $perPage,
+        ])->toArray();
+
+        return [
+            'items' => $items,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => $totalPages,
+        ];
+    }
+
     public function find(string $collection, string $id): ?object
     {
         $this->guard($collection);
