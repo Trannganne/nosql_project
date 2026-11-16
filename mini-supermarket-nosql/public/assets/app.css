@@ -34,4 +34,12 @@
   .table-wrap{border:none!important}
 }
 
-
+/* Pagination Styles */
+.pagination-wrap { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--line); }
+.pagination-info { color: var(--muted); font-size: 14px; }
+.pagination-links { display: flex; gap: 6px; }
+.page-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.15s ease; cursor: pointer; }
+.page-btn:hover:not(.disabled) { border-color: var(--brand); color: var(--brand); background: #f4f8f5; }
+.page-btn.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+.page-btn.disabled { opacity: 0.5; pointer-events: none; cursor: default; background: #fafcfb; }
+@media (max-width: 600px) { .pagination-wrap { flex-direction: column; gap: 12px; } }

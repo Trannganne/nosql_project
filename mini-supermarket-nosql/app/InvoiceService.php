@@ -13,6 +13,38 @@ final class InvoiceService
         return Database::connection()->invoices->find([], ['sort' => ['sold_at' => -1]])->toArray();
     }
 
+    public function paginate(string $search = '', int $page = 1, int $perPage = 10): array
+    {
+        $filter = [];
+        if ($search !== '') {
+            $regex = ['$regex' => preg_quote($search), '$options' => 'i'];
+            $filter = ['$or' => [
+                ['code' => $regex],
+                ['customer.name' => $regex],
+                ['employee.name' => $regex],
+            ]];
+        }
+        $coll = Database::connection()->invoices;
+        $total = $coll->countDocuments($filter);
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($page, $totalPages));
+        $skip = ($page - 1) * $perPage;
+        
+        $items = $coll->find($filter, [
+            'sort' => ['sold_at' => -1],
+            'skip' => $skip,
+            'limit' => $perPage,
+        ])->toArray();
+
+        return [
+            'items' => $items,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => $totalPages,
+        ];
+    }
+
     public function create(array $input): string
     {
         $db = Database::connection();

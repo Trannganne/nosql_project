@@ -200,7 +200,10 @@ function renderDashboard(array $d): void
 function renderCrud(Repository $repo, string $collection): void
 {
     $edit = !empty($_GET['id']) ? $repo->find($collection, (string) $_GET['id']) : null;
-    $docs = $repo->all($collection, trim((string) ($_GET['q'] ?? '')));
+    $q = trim((string) ($_GET['q'] ?? ''));
+    $p = max(1, (int) ($_GET['p'] ?? 1));
+    $pagination = $repo->paginate($collection, $q, $p, 10);
+    $docs = $pagination['items'];
     $fields = match ($collection) {
         'products' => ['code' => 'Mã', 'name' => 'Tên', 'category_code' => 'Mã loại', 'supplier_code' => 'Mã NCC', 'unit' => 'Đơn vị', 'stock' => 'Tồn kho', 'min_stock' => 'Tồn tối thiểu', 'purchase_price' => 'Giá nhập', 'sale_price' => 'Giá bán'],
         'categories' => ['code' => 'Mã', 'name' => 'Tên', 'description' => 'Mô tả'],
@@ -265,6 +268,7 @@ function renderCrud(Repository $repo, string $collection): void
                     </tbody>
                 </table>
             </div>
+            <?php renderPagination($pagination, "?page={$collection}&q=" . urlencode($q)); ?>
         </section>
     </section><?php }
 
@@ -273,7 +277,11 @@ function renderInvoices(): void
     $db = Database::connection();
     $products = $db->products->find(['active' => true], ['sort' => ['name' => 1]])->toArray();
     $customers = $db->customers->find(['active' => true], ['sort' => ['name' => 1]])->toArray();
-    $invoices = (new InvoiceService())->all();
+    
+    $q = trim((string) ($_GET['q'] ?? ''));
+    $p = max(1, (int) ($_GET['p'] ?? 1));
+    $pagination = (new InvoiceService())->paginate($q, $p, 10);
+    $invoices = $pagination['items'];
 
     $invoiceJsonMap = [];
     foreach ($invoices as $i) {
@@ -337,12 +345,20 @@ function renderInvoices(): void
                     <option value="cash">Tiền mặt</option>
                     <option value="bank_transfer">Chuyển khoản</option>
                 </select></label>
+            <div class="item" style="margin-bottom:4px;align-items:end;">
+                <div>Sản phẩm</div>
+                <div>Số lượng</div>
+                <div>Giảm giá (%)</div>
+            </div>
             <div id="items">
                 <div class="item"><select name="product_code[]" required>
                         <option value="">Chọn sản phẩm</option><?php foreach ($products as $p): ?><option value="<?= Security::e($p['code']) ?>"><?= Security::e($p['code'] . ' - ' . $p['name'] . ' (tồn ' . $p['stock'] . ')') ?></option><?php endforeach ?>
-                    </select><input type="number" name="quantity[]" min="1" value="1" required><input type="number" name="discount[]" min="0" max="100" value="0" required></div>
-            </div><button type="button" class="secondary" onclick="document.getElementById('items').append(document.querySelector('.item').cloneNode(true))">+ Sản phẩm</button> <button>Tạo hóa đơn</button>
+                    </select><input type="number" name="quantity[]" min="1" value="1" required title="Số lượng"><input type="number" name="discount[]" min="0" max="100" value="0" required title="Giảm giá (%)"></div>
+            </div><button type="button" class="secondary" onclick="let el=document.querySelector('#items .item').cloneNode(true);el.querySelector('select').value='';el.querySelectorAll('input').forEach(i=>i.value=i.name==='quantity[]'?1:0);document.getElementById('items').append(el)">+ Sản phẩm</button> <button>Tạo hóa đơn</button>
         </form>
+    </section>
+    <section class="card" style="margin-bottom: 20px; padding: 15px;">
+        <form class="search" style="margin:0;"><input type="hidden" name="page" value="invoices"><input name="q" value="<?= Security::e($q) ?>" placeholder="Tìm theo mã HD, tên khách, nhân viên"><button>Tìm kiếm</button></form>
     </section>
     <div class="table-wrap">
         <table>
@@ -372,6 +388,7 @@ function renderInvoices(): void
                     </tr><?php endforeach ?></tbody>
         </table>
     </div>
+    <?php renderPagination($pagination, "?page=invoices&q=" . urlencode($q)); ?>
 
     <div id="invoiceModal" class="modal-backdrop" onclick="if(event.target===this)closeInvoiceModal()">
         <div class="modal-card" id="printableInvoice">
@@ -585,3 +602,51 @@ function renderReports(array $r): void
             </select><button class="danger-button">Restore</button>
         </form>
     </section><?php }
+
+function renderPagination(array $pagination, string $baseUrl): void
+{
+    if ($pagination['total_pages'] <= 1) return;
+    $p = $pagination['page'];
+    $t = $pagination['total_pages'];
+    $start = max(1, $p - 2);
+    $end = min($t, $p + 2);
+    
+    echo '<div class="pagination-wrap">';
+    echo '<div class="pagination-info">';
+    $startItem = ($p - 1) * $pagination['per_page'] + 1;
+    $endItem = min($pagination['total'], $p * $pagination['per_page']);
+    echo 'Hiển thị ' . $startItem . ' - ' . $endItem . ' trong tổng số <strong>' . $pagination['total'] . '</strong> bản ghi';
+    echo '</div>';
+    
+    echo '<div class="pagination-links">';
+    
+    if ($p > 1) {
+        echo '<a class="page-btn" href="' . $baseUrl . '&p=1" title="Đầu">&laquo;</a>';
+        echo '<a class="page-btn" href="' . $baseUrl . '&p=' . ($p - 1) . '" title="Trước">&lsaquo;</a>';
+    } else {
+        echo '<span class="page-btn disabled">&laquo;</span>';
+        echo '<span class="page-btn disabled">&lsaquo;</span>';
+    }
+
+    if ($start > 1) {
+        echo '<span class="page-btn disabled">...</span>';
+    }
+    for ($i = $start; $i <= $end; $i++) {
+        $active = $i === $p ? 'active' : '';
+        echo '<a class="page-btn ' . $active . '" href="' . $baseUrl . '&p=' . $i . '">' . $i . '</a>';
+    }
+    if ($end < $t) {
+        echo '<span class="page-btn disabled">...</span>';
+    }
+
+    if ($p < $t) {
+        echo '<a class="page-btn" href="' . $baseUrl . '&p=' . ($p + 1) . '" title="Sau">&rsaquo;</a>';
+        echo '<a class="page-btn" href="' . $baseUrl . '&p=' . $t . '" title="Cuối">&raquo;</a>';
+    } else {
+        echo '<span class="page-btn disabled">&rsaquo;</span>';
+        echo '<span class="page-btn disabled">&raquo;</span>';
+    }
+    
+    echo '</div>';
+    echo '</div>';
+}
