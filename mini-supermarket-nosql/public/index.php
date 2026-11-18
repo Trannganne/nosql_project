@@ -163,13 +163,18 @@ $labels = ['dashboard' => 'Tổng quan', 'products' => 'Sản phẩm', 'categori
     <?php if (!Auth::check()): ?>
         <main class="login-wrap">
             <form method="post" class="card login-card">
-                <h1>MiniMart NoSQL</h1>
-                <p>Web PHP + MongoDB + Studio 3T</p><input type="hidden" name="_token" value="<?= Security::csrfToken() ?>"><label>Tên đăng nhập<input name="username" required autofocus></label><label>Mật khẩu<input type="password" name="password" required></label><?php if ($error): ?><div class="alert error"><?= Security::e($error) ?></div><?php endif ?><button>Đăng nhập</button><small>Dữ liệu mẫu: admin / password</small>
+                <div class="login-brand">
+                    <img class="brand-logo login-logo" src="assets/images/logo/logo.png" alt="MiniMart">
+                </div>
+                <h1 class="login-title">Đăng nhập hệ thống</h1>
+                <p class="login-subtitle">Web PHP + MongoDB + Studio 3T</p><input type="hidden" name="_token" value="<?= Security::csrfToken() ?>"><label>Tên đăng nhập<input name="username" required autofocus></label><label>Mật khẩu<input type="password" name="password" required></label><?php if ($error): ?><div class="alert error"><?= Security::e($error) ?></div><?php endif ?><button>Đăng nhập</button><small>Dữ liệu mẫu: admin / password</small>
             </form>
         </main>
     <?php else: ?>
         <aside>
-            <h2>MiniMart</h2>
+            <div class="sidebar-brand">
+                <img class="brand-logo" src="assets/images/logo/logo.png" alt="MiniMart">
+            </div>
             <p class="muted"><?= Security::e(Auth::user()['name']) ?> · <?= Security::e(Auth::user()['role']) ?></p>
             <nav><?php foreach ($labels as $key => $label): if ($key === 'users' && !Auth::isAdmin()) continue; ?><a class="<?= $page === $key ? 'active' : '' ?>" href="?page=<?= $key ?>"><?= $label ?></a><?php endforeach ?><a href="?page=logout">Đăng xuất</a></nav>
         </aside>
