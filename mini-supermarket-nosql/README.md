@@ -1,6 +1,6 @@
 # QUẢN LÝ SIÊU THỊ MINI - WEB PHP, MONGODB VÀ STUDIO 3T
 
-Project được chuyển đổi từ ứng dụng WinForms .NET Framework + SQL Server sang web PHP 8.1+ + MongoDB. Studio 3T được dùng để thiết kế, quản trị, truy vấn, import/export, backup/restore và phân tích hiệu năng trên cùng database `mini_supermarket` mà website sử dụng.
+Ứng dụng web quản lý siêu thị mini (**MiniMart**) được xây dựng bằng PHP 8.1+ và hệ quản trị cơ sở dữ liệu tài liệu MongoDB. Công cụ **Studio 3T** được sử dụng kết hợp để thiết kế, quản trị, truy vấn, kiểm chứng chỉ mục, import/export và backup/restore trực tiếp trên cùng cơ sở dữ liệu `mini_supermarket` mà ứng dụng web vận hành.
 
 ## 1. Chức năng đã có
 
@@ -89,8 +89,6 @@ Chức năng tạo hóa đơn dùng transaction để việc trừ tồn kho và
 7. Bấm **Test Connection**, sau đó **Save** và **Connect**.
 8. Mở database `mini_supermarket`. Website và Studio 3T phải trỏ đến cùng URI/database trong `.env`.
 
-Chi tiết các chức năng Studio 3T và kịch bản demo nằm trong [docs/HUONG_DAN_STUDIO_3T.md](docs/HUONG_DAN_STUDIO_3T.md).
-
 ## 6. Import, export, backup và restore
 
 ### Trên Studio 3T
@@ -113,12 +111,11 @@ mongorestore --uri="mongodb://127.0.0.1:27017" --db=mini_supermarket --drop back
 
 ```text
 app/                  Kết nối, xác thực, repository, hóa đơn, backup
-database/setup.js     Tạo database, validation, index và seed
-database/queries_*    Truy vấn để demo trên IntelliShell/Aggregation Editor
-docs/                 Barem, thay đổi, thiết kế và hướng dẫn Studio 3T
+database/setup.js     Tạo database, validation, index và seed dữ liệu mẫu
+database/queries_*    Truy vấn cơ bản và nâng cao chạy trên IntelliShell / Aggregation Editor
 public/index.php      Front controller và giao diện web
-public/assets/        CSS
-storage/backups/      Bản sao lưu do website tạo
+public/assets/        CSS, logo và hình ảnh sản phẩm
+storage/backups/      Thư mục chứa các bản sao lưu BSON do website tạo
 ```
 
 ## 8. Tài khoản mẫu
@@ -127,11 +124,3 @@ storage/backups/      Bản sao lưu do website tạo
 | --- | --- | --- |
 | Admin | `admin` | `password` |
 | Nhân viên | `staff` | `password` |
-
-## 9. Lưu ý khi chấm
-
-- Chạy `setup.js` trước khi demo.
-- Chuẩn bị sẵn connection Studio 3T và mở ba file trong `database/`.
-- Chụp ảnh trước/sau khi CRUD trên web và refresh collection trong Studio 3T để chứng minh cùng database.
-- Tạo ít nhất một backup và thử restore trên database phụ trước ngày báo cáo.
-- Barem có điểm cá nhân cho trình bày, đúng hạn và làm việc nhóm; mã nguồn không thể tự bảo đảm các điểm này.
